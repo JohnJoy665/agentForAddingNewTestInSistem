@@ -1,0 +1,66 @@
+var _group = Param._grpoupCode;
+alert('Начало загрузки сотрудников в группу')
+try {
+
+    // Проверяем есть ли группа. Если нет - создаем. Ф-ия возвращает 
+    function checkOrCreateGroup() {
+        docGroup = undefined;
+        _gropArr = ArrayOptFirstElem(XQuery("for $elem in groups where $elem/code = '" + _group + "' return $elem"));
+        if (_gropArr == undefined) {
+            docGroup = OpenNewDoc('x-local://wtv/wtv_group.xmd');
+            docGroup.BindToDb(DefaultDb);
+            docGroup.TopElem.code = _group;
+            docGroup.TopElem.name = _group;
+            docGroup.Save();
+            return docGroup.TopElem.id
+        }
+        return _gropArr.id
+    }
+
+    // проверяем группу и наполненность файла
+    if (_group == '' || _group == undefined) {
+        throw 'Укажите код группы в общихсведениях!'
+    }
+    excelFileUrl = Screen.AskFileOpen('', 'Выбери файл&#09;*.*');
+    checkFile = excelFileUrl.split('.');
+    alert(checkFile[checkFile.length - 1])
+    if (checkFile[checkFile.length - 1] != 'xlsx' && checkFile[checkFile.length - 1] != 'xls') {
+        throw 'Загрузите файл Excel в формате xls или xlsx'
+    }
+    sourceList = OpenDoc(excelFileUrl, 'format=excel');
+    linesArray = ArrayFirstElem(sourceList.TopElem);
+    if (linesArray[0][0] == '' && ArrayCount(linesArray) <= 1) {
+        throw 'Нет данных в файле'
+    }
+
+    // проверяем данные в excel и переводим в code в id
+    var firstColumn = []
+    var collArr = [];
+    for (var i = 0; i < ArrayCount(linesArray); i++) {
+        firstColumn = linesArray[i][0];
+        _colDoc = ArrayOptFirstElem(XQuery("for $elem in collaborators where $elem/code= '" + firstColumn + "'  return $elem"));
+        if (_colDoc != undefined) {
+            collArr.push(_colDoc.id)
+        }
+    }
+
+    // Проверяем данные в файле на валидность
+    if (collArr.length < 1) {
+        throw 'В файле нет валидных кодов сотрудников'
+    }
+
+    // Проверяем и добавляем сотрудников в группу
+    groupId = checkOrCreateGroup();
+    for (_collId in collArr) {
+        _groupCollDoc = ArrayOptFirstElem(XQuery("for $elem in group_collaborators where $elem/id= '" + groupId + "' and $elem/collaborator_id= " + _collId + "  return $elem"))
+        if (_groupCollDoc == undefined) {
+            group_doc = tools.open_doc(groupId);
+            group_doc.TopElem.collaborators.ObtainChildByKey(_collId);
+            group_doc.Save();
+        }
+    }
+}
+catch (err) {
+    alert('произошла ошибка: ' + err)
+}
+alert('конец загрузки сотрудников в группу')
